@@ -1,8 +1,7 @@
 import {Router} from "express";
 
-import {version} from "../../package.json";
-import levels from "../../db/levels.json";
-
+import levels from "config/levels.json";
+import {version} from "package";
 
 export default ({db}) => {
   const api = new Router();

@@ -4,10 +4,10 @@ import cors from "cors";
 import morgan from "morgan";
 import bodyParser from "body-parser";
 
-import config from "./config.json";
-import initializeDb from "./db";
-import middleware from "./middleware";
-import api from "./api";
+import config from "config/general.json";
+import initializeDb from "db";
+import middleware from "middleware";
+import api from "api";
 
 const app = express();
 app.server = http.createServer(app);

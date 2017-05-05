@@ -1,8 +1,8 @@
 import pgp from "pg-promise";
-import config from "../db/config";
+import dbConfig from "config/db";
 
 
-const db = pgp({})(config.development);
+const db = pgp({})(dbConfig.development);
 
 export default callback => {
   // connect to a database if needed, then pass it to `callback`:
