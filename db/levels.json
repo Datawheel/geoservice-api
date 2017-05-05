@@ -1,5 +1,5 @@
 {
-  "county": {"schema": "shapes", "table": "counties"},
-  "place": {"schema": "shapes", "table": "places"},
-  "tract": {"schema": "shapes", "table": "tract"}
+  "county": {"schema": "shapes", "table": "counties", "id": "geoid"},
+  "place": {"schema": "shapes", "table": "places", "id": "geoid"},
+  "tract": {"schema": "shapes", "table": "tract", "id": "geoid"}
 }

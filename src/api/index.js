@@ -30,8 +30,26 @@ export default ({db}) => {
     const qry = `SELECT * from ${targetTable} s1,
               ${targetTable} s2
               WHERE ST_Touches(s1.geom, s2.geom)
-              AND s1.geoid = $1
-              LIMIT 10;`;
+              AND s1.geoid = $1;`;
+
+    db.query(qry, geoId).then((results, error) => {
+      httpResult.json({results, error});
+    });
+  });
+
+  api.get("/within", (req, httpResult) => {
+    const geoId = req.query.target;
+    const level1 = req.query.targetLevel || "county";
+    const level2 = req.query.searchLevel || "place";
+
+    const targetTable1 = `${levels[level1].schema}.${levels[level1].table}`;
+    const targetTable2 = `${levels[level2].schema}.${levels[level2].table}`;
+    const targetId1 = levels[level1].id;
+
+    const qry = `SELECT * from ${targetTable1} s1,
+              ${targetTable2} s2
+              WHERE ST_Within(s1.geom, s2.geom)
+              AND s1.${targetId1} = $1;`;
 
     db.query(qry, geoId)
     .then((results, error) => {
@@ -39,12 +57,7 @@ export default ({db}) => {
     });
   });
 
-  api.get("/:intersects/:geo", (req, httpResult) => {
-    console.log(req, httpResult);
-    return {req, httpResult};
-  });
-
-  api.get("/:contains/:geo", (req, httpResult) => {
+  api.get("/intersects/:geoId", (req, httpResult) => {
     console.log(req, httpResult);
     return {req, httpResult};
   });
