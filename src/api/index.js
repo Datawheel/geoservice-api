@@ -6,7 +6,7 @@ import dbgeo from "dbgeo";
 
 function topofy(data, httpResult) {
   const precision = 5;
-  const quantization = null;
+  const quantization = 100000;
 
   dbgeo.parse(data, {
     outputFormat: "topojson",
@@ -17,6 +17,18 @@ function topofy(data, httpResult) {
   });
 }
 
+const levelLookup = geoId => {
+  const prefix = geoId.slice(0, 3);
+  const levelMap = {
+    "140": "tract",
+    "050": "county",
+    "040": "state",
+    "160": "place",
+    "860": "zip",
+    "970": "school-district"
+  };
+  return levelMap[prefix];
+};
 
 export default ({db}) => {
   const api = new Router();
@@ -29,7 +41,7 @@ export default ({db}) => {
 
   api.get("/neighbors/:geoId", (req, httpResult) => {
     const geoId = req.params.geoId;
-    const level = req.query.level || "county";
+    const level = levelLookup(geoId);
 
     if (!(level in levels)) {
       httpResult.status(404).json({status: "No such level", level});
@@ -115,5 +127,37 @@ export default ({db}) => {
       });
     });
   });
+
+  api.get("/related", (req, httpResult) => {
+    const geoId = req.query.target;
+    // const gisCmd = req.params.op === "within" ? "ST_Within" : "ST_Intersects";
+    const level1 = levelLookup(geoId);
+    const includeGeom = req.query.includeGeom ? ", s2.geom" : "";
+
+    const targetTable1 = `${levels[level1].schema}.${levels[level1].table}`;
+    const targetId1 = levels[level1].id;
+    const queries = [];
+
+    Object.keys(levels).forEach(level => {
+      const targetTable2 = `${levels[level].schema}.${levels[level].table}`;
+
+      const qry = `SELECT s2.geoid, s2.name ${includeGeom} from ${targetTable1} s1,
+                ${targetTable2} s2
+                WHERE (ST_Area(st_intersection(s2.geom, s1.geom)) / st_area(s1.geom)) > 0.01
+                AND s1.${targetId1} = $1`;
+      queries.push(qry);
+    });
+
+    Promise.all(queries.map(q => db.query(q, geoId)))
+      .then(values => values.reduce((acc, x) => [...acc, ...x], []))
+      .then(results => topofy(results, httpResult))
+      .catch(error => {
+        console.error("An error occured", error);
+        httpResult.json({error});
+      });
+
+  });
+
+
   return api;
 };
