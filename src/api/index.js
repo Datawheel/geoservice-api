@@ -69,11 +69,11 @@ export default ({db}) => {
     const targetTable1 = `${levels[level1].schema}.${levels[level1].table}`;
     const targetTable2 = `${levels[level2].schema}.${levels[level2].table}`;
     const targetId1 = levels[level1].id;
-
+    const intersectsFilter = gisCmd === "ST_Intersects" ? "AND (ST_Area(st_intersection(s2.geom, s1.geom)) / st_area(s1.geom)) > 0.01" : "";
     const qry = `SELECT s2.* from ${targetTable1} s1,
               ${targetTable2} s2
               WHERE ${gisCmd}(s2.geom, s1.geom)
-              AND s1.${targetId1} = $1;`;
+              AND s1.${targetId1} = $1 ${intersectsFilter};`;
     db.query(qry, geoId)
     .then((results, error) => {
       if (asTopo) {
