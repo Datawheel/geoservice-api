@@ -1,7 +1,7 @@
 {
   "state": {"schema": "shapes", "table": "states", "id": "geoid", "parent": "state", "allowedIds": ["04000US36"]},
   "county": {"schema": "shapes", "table": "counties", "id": "geoid", "parent": "state"},
-  "place": {"schema": "shapes", "table": "places", "id": "geoid", "parent": "state"},
+  "place": {"schema": "shapes", "table": "places", "id": "geoid", "parent": "county"},
   "school-district": {"schema": "shapes", "table": "school_districts", "id": "geoid", "parent": "state"},
   "tract": {"schema": "shapes", "table": "tracts", "id": "geoid", "parent": "county"},
   "zip": {"schema": "shapes", "table": "zips", "id": "geoid", "parent": "state"}
