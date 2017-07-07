@@ -107,12 +107,14 @@ export default ({db}) => {
     // const includeParent = true;
 
     let qry = `SELECT geoid, name, geom from ${targetTable} WHERE geoid=$1`;
+    const qryGeom = `(SELECT geom from ${targetTable} WHERE geoid=$1)`;
+
     if (hasParent) {
       const parentSettings = levels[levelSettings.parent];
       const parentTable = `${parentSettings.schema}."${parentSettings.table}"`;
 
       const filt = "allowedIds" in parentSettings ? `${parentSettings.id}
-        IN (${parentSettings.allowedIds.map(x => `'${x}'`).join(",")})` : false;
+        IN (${parentSettings.allowedIds.map(x => `'${x}'`).join(",")})` : `geoid in (SELECT geoid FROM ${parentTable} pt WHERE ST_Within(${qryGeom}, pt.geom))`;
       qry = `SELECT geoid, name, geom from ${parentTable} WHERE ${filt} UNION ALL ${qry};`;
       console.log(qry);
     }
