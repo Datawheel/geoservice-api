@@ -145,7 +145,7 @@ export default ({db}) => {
 
       const qry = `SELECT s2.geoid, s2.name ${includeGeom} from ${targetTable1} s1,
                 ${targetTable2} s2
-                WHERE (ST_Area(st_intersection(s2.geom, s1.geom)) / st_area(s1.geom)) > 0.01
+                WHERE (ST_Area(st_intersection(s2.geom, s1.geom)) / st_area(s1.geom)) > 0.001
                 AND s1.${targetId1} = $1`;
       queries.push(qry);
     });
