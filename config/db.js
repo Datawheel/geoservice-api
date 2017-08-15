@@ -7,7 +7,7 @@ module.exports = {
     user: process.env.GSA_DB_USER || "deploy",
     password: process.env.GSA_DB_PW || "",
     database: process.env.GSA_DB_NAME || "cny",
-    host: process.env.GSA_DB_HOST || "cny-aardvark.datawheel.us",
+    host: process.env.GSA_DB_HOST || "cny-bullfrog.datawheel.us",
     port: process.env.GSA_DB_PORT || 5432,
     dialect: "postgres"
   },
@@ -15,7 +15,7 @@ module.exports = {
     user: process.env.GSA_DB_USER || "deploy",
     password: process.env.GSA_DB_PW || "",
     database: process.env.GSA_DB_NAME || "sos",
-    host: process.env.GSA_DB_HOST || "cny-aardvark.datawheel.us",
+    host: process.env.GSA_DB_HOST || "cny-bullfrog.datawheel.us",
     port: process.env.GSA_DB_PORT || 5432,
     dialect: "postgres"
   }
