@@ -101,8 +101,8 @@ export default ({db}) => {
     const precision = 5;
     const hasParent = "parent" in levelSettings;
 
-
-    const targetTable = `${levelSettings.schema}.${levelSettings.table}`;
+    const tableRaw = levelSettings.displayTable ? levelSettings.displayTable : levelSettings.table;
+    const targetTable = `${levelSettings.schema}."${tableRaw}"`;
 
     // const includeParent = true;
 
@@ -111,7 +111,8 @@ export default ({db}) => {
 
     if (hasParent) {
       const parentSettings = levels[levelSettings.parent];
-      const parentTable = `${parentSettings.schema}."${parentSettings.table}"`;
+      const parentRaw = parentSettings.displayTable ?  parentSettings.displayTable : parentSettings.table;
+      const parentTable = `${parentSettings.schema}."${parentRaw}"`;
 
       const filt = "allowedIds" in parentSettings ? `${parentSettings.id}
         IN (${parentSettings.allowedIds.map(x => `'${x}'`).join(",")})` : `geoid in (SELECT geoid FROM ${parentTable} pt WHERE ST_Within(${qryGeom}, pt.geom))`;
