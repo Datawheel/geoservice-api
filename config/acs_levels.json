@@ -1,0 +1,8 @@
+{
+  "state": {"schema": "shapes2017", "table": "states", "id": "geoid", "parent": "state", "columns": ["name", "geoid"]},
+  "county": {"schema": "shapes2017", "table": "counties", "id": "geoid", "parent": "state", "columns": ["name", "geoid"], "nameColumn": "namelsad"},
+  "place": {"schema": "shapes2017", "table": "places", "id": "geoid", "parent": "county", "columns": ["name", "geoid"]},
+  "tract": {"schema": "shapes2017", "table": "tracts", "id": "geoid", "parent": "county", "columns": ["name", "geoid"], "nameColumn": "namelsad"},
+  "msa": {"schema": "shapes2017", "table": "msas", "id": "geoid", "parent": "state", "columns": ["name", "geoid"]},
+  "puma": {"schema": "shapes2017", "table": "pumas", "id": "geoid", "parent": "state", "columns": ["name", "geoid"], "nameColumn": "namelsad10"}
+}
