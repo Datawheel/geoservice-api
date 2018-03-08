@@ -1,4 +1,4 @@
-import dotenv from "dotenv";
+var dotenv = require("dotenv");
 
 dotenv.config();
 
