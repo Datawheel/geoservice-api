@@ -11,4 +11,6 @@ Required Environment variables:
 |GSA_DB_PW|Postgres Database Password|
 |GSA_DB_USER|Postgres Database Username|
 |GSA_DB_HOST|Postgres Database Host|
+|GSA_DB_PORT|Postgres Database Port|
+
 # geoservice-api
