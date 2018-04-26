@@ -1,31 +1,23 @@
 import {Router} from "express";
 
 import {version} from "package";
-import dbgeo from "dbgeo";
 
 import {levels} from "config/acs_levels";
 
 
-function topofy(data, httpResult) {
-  const precision = 5;
-  const quantization = 100000;
+const getTableForLevel = (level, mode = "shapes") => `${levels[mode][level].schema}.${levels[mode][level].table}`;
 
-  dbgeo.parse(data, {
-    outputFormat: "topojson",
-    precision,
-    quantization
-  }, (error, result) => {
-    httpResult.json(result);
-  });
-}
+const getMetaForLevel = (level, mode = "shapes") => levels[mode][level];
 
-const getTableForLevel = (level, mode='shapes') => {
-  return `${levels[mode][level].schema}.${levels[mode][level].table}`;
-}
-
-const getMetaForLevel = (level, mode='shapes') => {
-  return levels[mode][level];
-}
+const detectMode = level => {
+  if (level in levels.shapes) {
+    return "shapes";
+  }
+  else if (level in levels.points) {
+    return "points";
+  }
+  return null;
+};
 
 const reverseLevelLookup = lvl => {
   const levelMap = {
@@ -70,7 +62,7 @@ const groupByLevel = dataArr => {
     result[lvl].push(row);
   });
   return result;
-}
+};
 
 export default ({db}) => {
   const api = new Router();
@@ -79,7 +71,6 @@ export default ({db}) => {
     httpResult.json({version});
   });
 
-  // TODO add distance
 
   api.get("/neighbors/:geoId", (req, httpResult) => {
     const geoId = req.params.geoId;
@@ -179,16 +170,27 @@ export default ({db}) => {
     const geoId = req.params.geoId || req.query.target;
     const level1 = levelLookup(geoId);
     const includeGeom = req.query.includeGeom ? ", s2.geom" : "";
-    const targetTable1 = getTableForLevel(level1, 'shapes');
+    const targetTable1 = getTableForLevel(level1, "shapes");
     const targetId1 = getMetaForLevel(level1).id;
 
     const queries = [];
+    const skipLevel = req.query.showAll === "true" ? [] : ["tract"];
+    let stMode = "ST_Intersects";
+    console.log("Here", req.query.stMode);
+
+    if (req.query.stMode === "children") {
+      stMode = "ST_Within";
+    }
+    else if (req.query.stMode === "parents") {
+      stMode = "ST_Contains";
+    }
 
     // Process related shapes
-    Object.keys(levels.shapes).forEach(level => {
+    const lvlsToProcess = Object.keys(levels.shapes).filter(lvl => !skipLevel.includes(lvl));
+    lvlsToProcess.forEach(level => {
       if (level !== level1) {
-        const targetTable2 = getTableForLevel(level, 'shapes');
-        const myMeta = getMetaForLevel(level)
+        const targetTable2 = getTableForLevel(level, "shapes");
+        const myMeta = getMetaForLevel(level);
         const nameColumn2 = myMeta.nameColumn || "name";
         const gidColumn2 = myMeta.geoColumn || "geoid";
         let qry;
@@ -196,16 +198,16 @@ export default ({db}) => {
         if (specialCase && specialCase.levels.includes(level)) {
           const prefix = reverseLevelLookup(level);
           const testStr = `${prefix}${geoId.slice(3, specialCase.lengthToRetain)}`;
-          console.log(testStr)
+          console.log(testStr);
           qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${includeGeom}
                  FROM
                  ${targetTable2} s2
-                  WHERE s2.geoid LIKE '${testStr}%'`;
+                  WHERE s2.geoid LIKE '${testStr}%'`; // TODO SQL escaping
         }
         else {
           qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${includeGeom} from ${targetTable1} s1,
                   ${targetTable2} s2
-                  WHERE ST_Intersects(s2.geom, s1.geom) AND NOT ST_Touches(s2.geom, s1.geom)
+                  WHERE ${stMode}(s2.geom, s1.geom) AND NOT ST_Touches(s2.geom, s1.geom)
                   AND s1.${targetId1} = $1`;
         }
 
@@ -216,13 +218,13 @@ export default ({db}) => {
     // Process related points
     Object.keys(levels.points).forEach(level => {
       if (level !== level1) {
-        const targetTable2 = getTableForLevel(level, 'points');
-        const myMeta = getMetaForLevel(level, "points")
+        const targetTable2 = getTableForLevel(level, "points");
+        const myMeta = getMetaForLevel(level, "points");
         const nameColumn2 = myMeta.nameColumn || "name";
         const gidColumn2 = myMeta.id || "id";
         const qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${includeGeom} from ${targetTable1} s1,
                   ${targetTable2} s2
-                  WHERE ST_Intersects(ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), 4269), s1.geom)
+                  WHERE ${stMode}(ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), 4269), s1.geom)
                   AND s1.${targetId1} = $1`;
         queries.push(qry);
       }
