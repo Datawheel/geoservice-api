@@ -120,52 +120,6 @@ export default ({db}) => {
   //   });
   // });
 
-  // api.get("/topojson/:level/:focusId", (req, httpResult) => {
-  //   const level = req.params.level;
-  //   const focusId = req.params.focusId;
-  //
-  //   if (!(level in levels)) {
-  //     httpResult.status(404).json({status: "No such level", level});
-  //   }
-  //
-  //   const levelSettings = levels[level];
-  //
-  //   console.log("LEVEL=", level);
-  //   const quantization = parseFloat(req.query.quantization) || null;
-  //
-  //   const precision = 5;
-  //   const hasParent = "parent" in levelSettings;
-  //
-  //   const tableRaw = levelSettings.displayTable ? levelSettings.displayTable : levelSettings.table;
-  //   const targetTable = `${levelSettings.schema}."${tableRaw}"`;
-  //
-  //   // const includeParent = true;
-  //
-  //   let qry = `SELECT geoid, name, geom from ${targetTable} WHERE geoid=$1`;
-  //   const qryGeom = `(SELECT geom from ${targetTable} WHERE geoid=$1)`;
-  //
-  //   if (hasParent) {
-  //     const parentSettings = levels[levelSettings.parent];
-  //     const parentRaw = parentSettings.displayTable ?  parentSettings.displayTable : parentSettings.table;
-  //     const parentTable = `${parentSettings.schema}."${parentRaw}"`;
-  //
-  //     const filt = "allowedIds" in parentSettings ? `${parentSettings.id}
-  //       IN (${parentSettings.allowedIds.map(x => `'${x}'`).join(",")})` : `geoid in (SELECT geoid FROM ${parentTable} pt WHERE ST_Within(${qryGeom}, pt.geom))`;
-  //     qry = `SELECT geoid, name, geom from ${parentTable} WHERE ${filt} UNION ALL ${qry};`;
-  //     console.log(qry);
-  //   }
-  //
-  //   db.query(qry, focusId).then(data => {
-  //     dbgeo.parse(data, {
-  //       outputFormat: "topojson",
-  //       precision,
-  //       quantization
-  //     }, (error, result) => {
-  //       httpResult.json(result);
-  //     });
-  //   });
-  // });
-
   api.get("/related/:geoId", (req, httpResult) => {
     const geoId = req.params.geoId || req.query.target;
     const level1 = levelLookup(geoId);
@@ -175,8 +129,8 @@ export default ({db}) => {
 
     const queries = [];
     const skipLevel = req.query.showAll === "true" ? [] : ["tract"];
+    const overlapSize = req.query.overlapSize === "true";
     let stMode = "ST_Intersects";
-    console.log("Here", req.query.stMode);
 
     if (req.query.stMode === "children") {
       stMode = "ST_Within";
@@ -198,17 +152,18 @@ export default ({db}) => {
         if (specialCase && specialCase.levels.includes(level)) {
           const prefix = reverseLevelLookup(level);
           const testStr = `${prefix}${geoId.slice(3, specialCase.lengthToRetain)}`;
-          console.log(testStr);
+          // console.log(testStr);
           qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${includeGeom}
                  FROM
                  ${targetTable2} s2
                   WHERE s2.geoid LIKE '${testStr}%'`; // TODO SQL escaping
         }
         else {
-          qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${includeGeom} from ${targetTable1} s1,
-                  ${targetTable2} s2
-                  WHERE ${stMode}(s2.geom, s1.geom) AND NOT ST_Touches(s2.geom, s1.geom)
-                  AND s1.${targetId1} = $1`;
+          const overlapSizeQry = overlapSize ? ", ST_Area(ST_Intersection(s2.geom, s1.geom)) as overlap_size" : "";
+          qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${overlapSizeQry} ${includeGeom}
+                 FROM ${targetTable1} s1,
+                 ${targetTable2} s2
+                 WHERE ${stMode}(s2.geom, s1.geom) AND NOT ST_Touches(s2.geom, s1.geom) AND s1.${targetId1} = $1`;
         }
 
         queries.push(qry);
