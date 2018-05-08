@@ -88,12 +88,11 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
       }
       else {
         const overlapSizeQry = overlapSize ? ", ST_Area(ST_Intersection(s1.geom, s2.geom)) as overlap_size" : "";
-        console.log(level, "TEST!", overlapSize);
+
         qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${overlapSizeQry}
                FROM ${targetTable1} s1,
                ${targetTable2} s2
                WHERE ${stMode}(s1.geom, s2.geom) AND NOT ST_Touches(s1.geom, s2.geom) AND s1.${targetId1} = $1`;
-        console.log(qry);
       }
 
       queries.push(qry);
@@ -101,7 +100,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
   });
 
   // Process related points
-  Object.keys(levels.points).filter(lvl => !skipLevel.includes(lvl)).forEach(level => {
+  Object.keys(levels.points).forEach(level => {
     if (level !== level1) {
       const targetTable2 = getTableForLevel(level, "points");
       const myMeta = getMetaForLevel(level, "points");
@@ -109,7 +108,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
       const gidColumn2 = myMeta.id || "id";
       const qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level from ${targetTable1} s1,
                 ${targetTable2} s2
-                WHERE ${stMode}(ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), 4269), s1.geom)
+                WHERE ${stMode}(s1.geom, ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), 4269))
                 AND s1.${targetId1} = $1`;
       queries.push(qry);
     }
@@ -156,7 +155,7 @@ export default ({db}) => {
   api.get("/relations/:mode(parents|children|intersects)/:geoId", (req, httpResult) => {
     const geoId = req.params.geoId;
     const mode = req.params.mode;
-    const skipLevel = req.query.showAll === "true" ? [] : ["puma", "university"];
+    const skipLevel = req.query.showMore === "true" ? [] : ["puma", "university"];
     if (req.query.forceTracts !== "true") {
       skipLevel.push("tract");
     }
