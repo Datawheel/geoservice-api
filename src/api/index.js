@@ -143,7 +143,7 @@ export default ({db}) => {
               AND s1.geoid = $1;`;
 
     db.query(qry, geoId).then((results, error) => {
-      httpResult.json({neighbors: results, error});
+      httpResult.json(!error ? results : error);
     });
   });
 
