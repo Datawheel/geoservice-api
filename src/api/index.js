@@ -101,7 +101,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
 
   // Process related points
   Object.keys(levels.points).forEach(level => {
-    if (level !== level1) {
+    if (level !== level1 && !skipLevel.includes(level)) {
       const targetTable2 = getTableForLevel(level, "points");
       const myMeta = getMetaForLevel(level, "points");
       const nameColumn2 = myMeta.nameColumn || "name";
