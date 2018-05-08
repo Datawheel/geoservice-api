@@ -50,18 +50,72 @@ const levelLookup = geoId => {
 };
 
 
-const groupByLevel = dataArr => {
-  const result = {};
-  dataArr.forEach(row => {
-    // const geoId = row.geoid;
-    // const myPrefix = geoId.slice(0, 3);
-    const lvl = row.level;
-    if (!Object.keys(result).includes(lvl)) {
-      result[lvl] = [];
+const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
+  const level1 = levelLookup(geoId);
+  const targetTable1 = getTableForLevel(level1, "shapes");
+  const targetId1 = getMetaForLevel(level1).id;
+
+  const queries = [];
+
+  if (stMode === "children") {
+    stMode = "ST_Contains";
+  }
+  else if (stMode === "parents") {
+    stMode = "ST_Within";
+  }
+  else {
+    stMode = "ST_Intersects";
+  }
+
+  // Process related shapes
+  const lvlsToProcess = Object.keys(levels.shapes).filter(lvl => !skipLevel.includes(lvl));
+  lvlsToProcess.forEach(level => {
+    if (level !== level1) {
+      const targetTable2 = getTableForLevel(level, "shapes");
+      const myMeta = getMetaForLevel(level);
+      const nameColumn2 = myMeta.nameColumn || "name";
+      const gidColumn2 = myMeta.geoColumn || "geoid";
+      let qry;
+      const specialCase = levels.simpleRelations[level1];
+      if (specialCase && specialCase.levels.includes(level)) {
+        const prefix = reverseLevelLookup(level);
+        const testStr = `${prefix}${geoId.slice(3, specialCase.lengthToRetain)}`;
+        // console.log(testStr);
+        qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level
+               FROM
+               ${targetTable2} s2
+                WHERE s2.geoid LIKE '${testStr}%'`; // TODO SQL escaping
+      }
+      else {
+        const overlapSizeQry = overlapSize ? ", ST_Area(ST_Intersection(s1.geom, s2.geom)) as overlap_size" : "";
+        console.log(level, "TEST!", overlapSize);
+        qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${overlapSizeQry}
+               FROM ${targetTable1} s1,
+               ${targetTable2} s2
+               WHERE ${stMode}(s1.geom, s2.geom) AND NOT ST_Touches(s1.geom, s2.geom) AND s1.${targetId1} = $1`;
+        console.log(qry);
+      }
+
+      queries.push(qry);
     }
-    result[lvl].push(row);
   });
-  return result;
+
+  // Process related points
+  Object.keys(levels.points).filter(lvl => !skipLevel.includes(lvl)).forEach(level => {
+    if (level !== level1) {
+      const targetTable2 = getTableForLevel(level, "points");
+      const myMeta = getMetaForLevel(level, "points");
+      const nameColumn2 = myMeta.nameColumn || "name";
+      const gidColumn2 = myMeta.id || "id";
+      const qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level from ${targetTable1} s1,
+                ${targetTable2} s2
+                WHERE ${stMode}(ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), 4269), s1.geom)
+                AND s1.${targetId1} = $1`;
+      queries.push(qry);
+    }
+  });
+
+  return queries;
 };
 
 export default ({db}) => {
@@ -94,108 +148,39 @@ export default ({db}) => {
     });
   });
 
-  // api.get("/:op(within|intersects)", (req, httpResult) => {
-  //   const geoId = req.query.target;
-  //   const gisCmd = req.params.op === "within" ? "ST_Within" : "ST_Intersects";
-  //   const level1 = req.query.targetLevel || "county";
-  //   const level2 = req.query.searchLevel || "place";
-  //   const asTopo = req.query.asTopo;
-  //
-  //   const targetTable1 = `${levels[level1].schema}.${levels[level1].table}`;
-  //   const targetTable2 = `${levels[level2].schema}.${levels[level2].table}`;
-  //   const targetId1 = levels[level1].id;
-  //   const intersectsFilter = gisCmd === "ST_Intersects" ? "AND (ST_Area(st_intersection(s2.geom, s1.geom)) / st_area(s1.geom)) > 0.01" : "";
-  //   const qry = `SELECT s2.* from ${targetTable1} s1,
-  //             ${targetTable2} s2
-  //             WHERE ${gisCmd}(s2.geom, s1.geom)
-  //             AND s1.${targetId1} = $1 ${intersectsFilter};`;
-  //   db.query(qry, geoId)
-  //   .then((results, error) => {
-  //     if (asTopo) {
-  //       topofy(results, httpResult);
-  //     }
-  //     else {
-  //       httpResult.json({results, error});
-  //     }
-  //   });
-  // });
+  api.get("/relations/:mode(parents|children|intersects)/01000US", (req, httpResult) => {
+    const nationVal = {geoid: "01000US", level: "nation", name: "United States", overlap_size: 1};
+    httpResult.json([nationVal]);
+  });
 
-  api.get("/related/:geoId", (req, httpResult) => {
-    const geoId = req.params.geoId || req.query.target;
-    const level1 = levelLookup(geoId);
-    const includeGeom = req.query.includeGeom ? ", s2.geom" : "";
-    const targetTable1 = getTableForLevel(level1, "shapes");
-    const targetId1 = getMetaForLevel(level1).id;
+  api.get("/relations/:mode(parents|children|intersects)/:geoId", (req, httpResult) => {
+    const geoId = req.params.geoId;
+    const mode = req.params.mode;
+    const skipLevel = req.query.showAll === "true" ? [] : ["puma", "university"];
+    if (req.query.forceTracts !== "true") {
+      skipLevel.push("tract");
+    }
 
-    const queries = [];
-    const skipLevel = req.query.showAll === "true" ? [] : ["tract"];
     const overlapSize = req.query.overlapSize === "true";
-    let stMode = "ST_Intersects";
-
-    if (req.query.stMode === "children") {
-      stMode = "ST_Within";
-    }
-    else if (req.query.stMode === "parents") {
-      stMode = "ST_Contains";
-    }
-
-    // Process related shapes
-    const lvlsToProcess = Object.keys(levels.shapes).filter(lvl => !skipLevel.includes(lvl));
-    lvlsToProcess.forEach(level => {
-      if (level !== level1) {
-        const targetTable2 = getTableForLevel(level, "shapes");
-        const myMeta = getMetaForLevel(level);
-        const nameColumn2 = myMeta.nameColumn || "name";
-        const gidColumn2 = myMeta.geoColumn || "geoid";
-        let qry;
-        const specialCase = levels.simpleRelations[level1];
-        if (specialCase && specialCase.levels.includes(level)) {
-          const prefix = reverseLevelLookup(level);
-          const testStr = `${prefix}${geoId.slice(3, specialCase.lengthToRetain)}`;
-          // console.log(testStr);
-          qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${includeGeom}
-                 FROM
-                 ${targetTable2} s2
-                  WHERE s2.geoid LIKE '${testStr}%'`; // TODO SQL escaping
-        }
-        else {
-          const overlapSizeQry = overlapSize ? ", ST_Area(ST_Intersection(s2.geom, s1.geom)) as overlap_size" : "";
-          qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${overlapSizeQry} ${includeGeom}
-                 FROM ${targetTable1} s1,
-                 ${targetTable2} s2
-                 WHERE ${stMode}(s2.geom, s1.geom) AND NOT ST_Touches(s2.geom, s1.geom) AND s1.${targetId1} = $1`;
-        }
-
-        queries.push(qry);
-      }
-    });
-
-    // Process related points
-    Object.keys(levels.points).forEach(level => {
-      if (level !== level1) {
-        const targetTable2 = getTableForLevel(level, "points");
-        const myMeta = getMetaForLevel(level, "points");
-        const nameColumn2 = myMeta.nameColumn || "name";
-        const gidColumn2 = myMeta.id || "id";
-        const qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${includeGeom} from ${targetTable1} s1,
-                  ${targetTable2} s2
-                  WHERE ${stMode}(ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), 4269), s1.geom)
-                  AND s1.${targetId1} = $1`;
-        queries.push(qry);
-      }
-    });
-
+    const queries = geoSpatialHelper(mode, geoId, skipLevel, overlapSize);
     Promise.all(queries.map(q => db.query(q, geoId)))
       .then(values => values.reduce((acc, x) => [...acc, ...x], []))
-      .then(groupByLevel)
+      .then(dataArr => {
+        if (mode !== "children") {
+          const nationVal = {geoid: "01000US", level: "nation", name: "United States"};
+          if (overlapSize) {
+            nationVal.overlap_size = 1;
+          }
+          dataArr.splice(0, 0, nationVal);
+        }
+        return dataArr;
+      })
       .then(results => httpResult.json(results))
       .catch(error => {
         console.error("An error occured", error);
         httpResult.json({error});
       });
-
   });
-
 
   return api;
 };
