@@ -9,15 +9,6 @@ const getTableForLevel = (level, mode = "shapes") => `${levels[mode][level].sche
 
 const getMetaForLevel = (level, mode = "shapes") => levels[mode][level];
 
-const detectMode = level => {
-  if (level in levels.shapes) {
-    return "shapes";
-  }
-  else if (level in levels.points) {
-    return "points";
-  }
-  return null;
-};
 
 const reverseLevelLookup = lvl => {
   const levelMap = {
@@ -66,9 +57,9 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
   else {
     stMode = "ST_Intersects";
   }
-
+  const filterCond = lvl => !skipLevel.includes(lvl);
   // Process related shapes
-  const lvlsToProcess = Object.keys(levels.shapes).filter(lvl => !skipLevel.includes(lvl));
+  const lvlsToProcess = Object.keys(levels.shapes).filter(filterCond);
   lvlsToProcess.forEach(level => {
     if (level !== level1) {
       const targetTable2 = getTableForLevel(level, "shapes");
@@ -84,7 +75,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
         qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level
                FROM
                ${targetTable2} s2
-                WHERE s2.geoid LIKE '${testStr}%'`; // TODO SQL escaping
+                WHERE s2."${gidColumn2}" LIKE '${testStr}%'`; // TODO SQL escaping
       }
       else {
         const overlapSizeQry = overlapSize ? ", ST_Area(ST_Intersection(s1.geom, s2.geom)) as overlap_size" : "";
@@ -101,7 +92,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
 
   // Process related points
   Object.keys(levels.points).forEach(level => {
-    if (level !== level1 && !skipLevel.includes(level)) {
+    if (level !== level1 && filterCond(level)) {
       const targetTable2 = getTableForLevel(level, "points");
       const myMeta = getMetaForLevel(level, "points");
       const nameColumn2 = myMeta.nameColumn || "name";
@@ -155,9 +146,15 @@ export default ({db}) => {
   api.get("/relations/:mode(parents|children|intersects)/:geoId", (req, httpResult) => {
     const geoId = req.params.geoId;
     const mode = req.params.mode;
-    const skipLevel = req.query.showMore === "true" ? [] : ["puma", "university"];
-    if (req.query.forceTracts !== "true") {
-      skipLevel.push("tract");
+    let skipLevel = [...Object.keys(levels.shapes).filter(lvl => getMetaForLevel(lvl).ignoreByDefault),
+      ...Object.keys(levels.points).filter(lvl => getMetaForLevel(lvl, "points").ignoreByDefault)];
+
+    let targetLevels = req.query.targetLevels;
+
+    if (targetLevels) {
+      targetLevels = targetLevels.split(",");
+      const levelNames = [...Object.keys(levels.shapes), ...Object.keys(levels.points)];
+      skipLevel = levelNames.filter(x => !targetLevels.includes(x));
     }
 
     const overlapSize = req.query.overlapSize === "true";
