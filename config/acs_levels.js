@@ -22,11 +22,13 @@ export const levels = {
   simpleRelations: {
     state: {
       lengthToRetain: 9,
-      levels: ["county", "tract", "puma"]
+      levels: ["county", "tract", "puma"],
+      mode: "children"
     },
     county: {
       lengthToRetain: 12,
-      levels: ["tract"]
+      levels: ["tract"],
+      mode: "children"
     }
   }
 };
