@@ -45,7 +45,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
   const level1 = levelLookup(geoId);
   const targetTable1 = getTableForLevel(level1, "shapes");
   const targetId1 = getMetaForLevel(level1).id;
-
+  const levelMode = stMode;
   const queries = [];
 
   if (stMode === "children") {
@@ -68,10 +68,9 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
       const gidColumn2 = myMeta.geoColumn || "geoid";
       let qry;
       const specialCase = levels.simpleRelations[level1];
-      if (specialCase && specialCase.levels.includes(level)) {
+      if (specialCase && specialCase.levels.includes(level) && specialCase.mode === levelMode) {
         const prefix = reverseLevelLookup(level);
         const testStr = `${prefix}${geoId.slice(3, specialCase.lengthToRetain)}`;
-        // console.log(testStr);
         qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level
                FROM
                ${targetTable2} s2
