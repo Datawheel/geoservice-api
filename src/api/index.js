@@ -161,7 +161,7 @@ export default ({db}) => {
     Promise.all(queries.map(q => db.query(q, geoId)))
       .then(values => values.reduce((acc, x) => [...acc, ...x], []))
       .then(dataArr => {
-        if (mode !== "children") {
+        if (mode !== "children" && !targetLevels) {
           const nationVal = {geoid: "01000US", level: "nation", name: "United States"};
           if (overlapSize) {
             nationVal.overlap_size = 1;
