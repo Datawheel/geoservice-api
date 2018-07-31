@@ -12,5 +12,4 @@ Required Environment variables:
 |GSA_DB_USER|Postgres Database Username|
 |GSA_DB_HOST|Postgres Database Host|
 |GSA_DB_PORT|Postgres Database Port|
-
-# geoservice-api
+|GSA_USER_CONFIG_FILE| Absolute path to levels JSON configuration file _(optional)_|

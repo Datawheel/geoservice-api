@@ -2,7 +2,16 @@ import {Router} from "express";
 
 import {version} from "package";
 
-import {levels} from "config/acs_levels";
+import acsConfig from "config/acs_levels";
+
+let userConfig = null;
+
+if (process.env.GSA_USER_CONFIG_FILE) {
+  userConfig = require(process.env.GSA_USER_CONFIG_FILE).default;
+  console.log(userConfig);
+}
+
+const levels = userConfig || acsConfig;
 
 
 const getTableForLevel = (level, mode = "shapes") => `${levels[mode][level].schema}.${levels[mode][level].table}`;
