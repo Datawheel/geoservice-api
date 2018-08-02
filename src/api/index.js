@@ -110,11 +110,43 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
                 ${targetTable2} s2
                 WHERE ${stMode}(s1.geom, ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), 4269))
                 AND s1.${targetId1} = $1`;
-      queries.push(qry);
+      queries.push({qry, params: [geoId]});
     }
   });
 
   return queries;
+};
+
+const pointFinderHelper = (lng, lat, skipLevel) => {
+  const filterCond = lvl => !skipLevel.includes(lvl);
+  const queries = [];
+  // Process related boundaries
+  const lvlsToProcess = Object.keys(levels.shapes).filter(filterCond);
+  lvlsToProcess.forEach(level => {
+    const targetTable2 = getTableForLevel(level, "shapes");
+    const myMeta = getMetaForLevel(level);
+    const srid = myMeta.srid || 4269;
+    const nameColumn2 = myMeta.nameColumn || "name";
+    const gidColumn2 = myMeta.geoColumn || "geoid";
+    const qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level
+                 FROM ${targetTable2} s2
+                 WHERE ST_Intersects(s2.geom, ST_SetSRID(ST_MakePoint($2, $3), $1))`;
+    queries.push({qry, params: [srid, parseFloat(lng), parseFloat(lat)]});
+  });
+
+  return queries;
+};
+
+const getSkipLevels = req => {
+  let skipLevel = [...Object.keys(levels.shapes).filter(lvl => getMetaForLevel(lvl).ignoreByDefault),
+    ...Object.keys(levels.points).filter(lvl => getMetaForLevel(lvl, "points").ignoreByDefault)];
+  let targetLevels = req.query.targetLevels;
+  if (targetLevels) {
+    targetLevels = targetLevels.split(",");
+    const levelNames = [...Object.keys(levels.shapes), ...Object.keys(levels.points)];
+    skipLevel = levelNames.filter(x => !targetLevels.includes(x));
+  }
+  return skipLevel;
 };
 
 export default ({db}) => {
@@ -124,6 +156,28 @@ export default ({db}) => {
     httpResult.json({version});
   });
 
+  api.get("/coordinates", (req, httpResult) => {
+    const longitude = req.query.longitude;
+    const latitude = req.query.latitude;
+    if (!latitude || !longitude) {
+      httpResult.status(400).send("Must specify latitude and longitude");
+    }
+    else {
+      const skipLevel = getSkipLevels(req);
+      console.log(skipLevel);
+      const queries = pointFinderHelper(longitude, latitude, skipLevel);
+      Promise.all(queries.map(raw => {
+        const {qry, params} = raw;
+        return db.query(qry, params);
+      }))
+        .then(values => values.reduce((acc, x) => [...acc, ...x], []))
+        .then(results => httpResult.json(results))
+        .catch(error => {
+          console.error("An error occured", error);
+          httpResult.json({error});
+        });
+    }
+  });
 
   api.get("/neighbors/:geoId", (req, httpResult) => {
     const geoId = req.params.geoId;
@@ -170,7 +224,7 @@ export default ({db}) => {
     const queries = geoSpatialHelper(mode, geoId, skipLevel, overlapSize);
     Promise.all(queries.map(raw => {
       const {qry, params} = raw;
-      return db.query(qry, ...params);
+      return db.query(qry, params);
     }))
       .then(values => values.reduce((acc, x) => [...acc, ...x], []))
       .then(dataArr => {
