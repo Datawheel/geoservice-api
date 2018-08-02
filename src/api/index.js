@@ -80,18 +80,19 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
       if (specialCase && specialCase.levels.includes(level) && specialCase.mode === levelMode) {
         const prefix = reverseLevelLookup(level);
         const testStr = `${prefix}${geoId.slice(3, specialCase.lengthToRetain)}`;
-        qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level
-               FROM
-               ${targetTable2} s2
-                WHERE s2."${gidColumn2}" LIKE '${testStr}%'`; // TODO SQL escaping
+        qry = {qry: `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level
+               FROM ${targetTable2} s2
+               WHERE s2."${gidColumn2}" LIKE $1`,
+        params: [`${testStr}%`]};
       }
       else {
         const overlapSizeQry = overlapSize ? ", ST_Area(ST_Intersection(s1.geom, s2.geom)) as overlap_size" : "";
 
-        qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${overlapSizeQry}
+        qry = {qry: `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${overlapSizeQry}
                FROM ${targetTable1} s1,
                ${targetTable2} s2
-               WHERE ${stMode}(s1.geom, s2.geom) AND NOT ST_Touches(s1.geom, s2.geom) AND s1.${targetId1} = $1`;
+               WHERE ${stMode}(s1.geom, s2.geom) AND NOT ST_Touches(s1.geom, s2.geom) AND s1.${targetId1} = $1`,
+        params: [geoId]};
       }
 
       queries.push(qry);
@@ -167,7 +168,10 @@ export default ({db}) => {
 
     const overlapSize = req.query.overlapSize === "true";
     const queries = geoSpatialHelper(mode, geoId, skipLevel, overlapSize);
-    Promise.all(queries.map(q => db.query(q, geoId)))
+    Promise.all(queries.map(raw => {
+      const {qry, params} = raw;
+      return db.query(qry, ...params);
+    }))
       .then(values => values.reduce((acc, x) => [...acc, ...x], []))
       .then(dataArr => {
         if (mode !== "children" && !targetLevels) {
