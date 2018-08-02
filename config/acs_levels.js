@@ -1,4 +1,4 @@
-export default {
+module.exports = {
   shapes: {
     state: {schema: "shapes2017", table: "states", id: "geoid", parent: "state", columns: ["name", "geoid"], srid: 4269},
     county: {schema: "shapes2017", table: "counties", id: "geoid", parent: "state", columns: ["name", "geoid"], nameColumn: "namelsad", srid: 4269},

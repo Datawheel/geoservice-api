@@ -6,9 +6,14 @@ import acsConfig from "config/acs_levels";
 
 let userConfig = null;
 
-if (process.env.GSA_USER_CONFIG_FILE) {
-  userConfig = require(process.env.GSA_USER_CONFIG_FILE).default;
-  console.log(userConfig);
+const USER_CONFIG = process.env.GSA_USER_CONFIG_FILE;
+
+if (USER_CONFIG) {
+  userConfig = require(USER_CONFIG);
+  console.log("Using user config file", USER_CONFIG, userConfig);
+}
+else {
+  console.log("Using default configuration:", acsConfig);
 }
 
 const levels = userConfig || acsConfig;
