@@ -173,7 +173,7 @@ export default ({db}) => {
       .then(results => httpResult.json(results))
       .catch(error => {
         console.error("An error occured", error);
-        httpResult.json({error});
+        httpResult.status(500).json({error});
       });
   });
 
