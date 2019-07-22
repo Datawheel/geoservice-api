@@ -9,6 +9,7 @@ let userConfig = null;
 const USER_CONFIG = process.env.GSA_USER_CONFIG_FILE;
 
 if (USER_CONFIG) {
+  console.log("Trying user config file", USER_CONFIG);
   userConfig = require(USER_CONFIG);
   console.log("Using user config file", USER_CONFIG, userConfig);
 }
@@ -24,22 +25,7 @@ const getTableForLevel = (level, mode = "shapes") => `${levels[mode][level].sche
 const getMetaForLevel = (level, mode = "shapes") => levels[mode][level];
 
 
-const reverseLevelLookup = lvl => {
-  const levelMap = {
-    "tract": "140",
-    "county": "050",
-    "state": "040",
-    "msa": "310",
-    "place": "160",
-    "zip": "860",
-    "puma": "795",
-    "school-district": "970"
-  };
-  return levelMap[lvl];
-};
-
-
-const levelLookup = geoId => {
+const defaultLevelLookup = geoId => {
   const prefix = geoId.slice(0, 3);
   const levelMap = {
     "140": "tract",
@@ -54,11 +40,37 @@ const levelLookup = geoId => {
   return levelMap[prefix];
 };
 
+/*
+Given an idMapping dictionary, this function will assemble another function
+which given an ID will determine what geospatial level the ID represents
+so that the appropriate SQL table can be queried.
+*/
+function buildLevelLookup(myLevels) {
+  if (myLevels.idMapping !== undefined) {
+    const myLenConditions = Object.keys(myLevels.idMapping).map(key => {
+      return [key, myLevels.idMapping[key].maxLength];
+    });
+    return lvl => {
+      for (let i = 0; i < myLenConditions.length; i++) {
+        const item = myLenConditions[i];
+        if (lvl.length <= item[1]) {
+          return item[0];
+        }
+      }
+      throw new Error("Bad level!");
+    };
+  }
+  return defaultLevelLookup;
+}
+
+const levelLookup = buildLevelLookup(levels);
 
 const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
   const level1 = levelLookup(geoId);
+  console.log("MYLEVEL=", level1);
   const targetTable1 = getTableForLevel(level1, "shapes");
-  const targetId1 = getMetaForLevel(level1).id;
+  const myMeta1 = getMetaForLevel(level1);
+  const targetId1 = myMeta1.id || myMeta1.geoColumn;
   const levelMode = stMode;
   const queries = [];
 
@@ -74,21 +86,24 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
   const filterCond = lvl => !skipLevel.includes(lvl);
   // Process related shapes
   const lvlsToProcess = Object.keys(levels.shapes).filter(filterCond);
+  const geometryColumn1 = "geometry"; ////myMeta1.geometryColumn || "geometry";
   lvlsToProcess.forEach(level => {
     if (level !== level1) {
       const targetTable2 = getTableForLevel(level, "shapes");
       const myMeta = getMetaForLevel(level);
       const nameColumn2 = myMeta.nameColumn || "name";
       const gidColumn2 = myMeta.geoColumn || "geoid";
+      const geometryColumn2 = myMeta.geometryColumn || "geometry";
+
       let qry;
       const specialCase = levels.simpleRelations[level1];
       if (specialCase && specialCase.levels.includes(level) && specialCase.mode === levelMode) {
-        const prefix = reverseLevelLookup(level);
-        const testStr = `${prefix}${geoId.slice(3, specialCase.lengthToRetain)}`;
+        // const prefix = reverseLevelLookup(level);
+        const testStr = `${geoId.slice(0, specialCase.lengthToRetain)}`;
         qry = {qry: `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level
                FROM ${targetTable2} s2
-               WHERE s2."${gidColumn2}" LIKE $1`,
-        params: [`${testStr}%`]};
+               WHERE CAST(s2."${gidColumn2}" as TEXT) LIKE $1`,
+          params: [`${testStr}%`]};
       }
       else {
         const overlapSizeQry = overlapSize ? ", ST_Area(ST_Intersection(s1.geom, s2.geom)) as overlap_size" : "";
@@ -96,29 +111,33 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
         qry = {qry: `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${overlapSizeQry}
                FROM ${targetTable1} s1,
                ${targetTable2} s2
-               WHERE ${stMode}(s1.geom, s2.geom) AND NOT ST_Touches(s1.geom, s2.geom) AND s1.${targetId1} = $1`,
-        params: [geoId]};
+               WHERE ${stMode}(s1."${geometryColumn1}", s2."${geometryColumn2}") AND NOT ST_Touches(s1."${geometryColumn1}", s2."${geometryColumn2}") AND s1.${targetId1} = $1`,
+          params: [geoId]};
+          
       }
 
       queries.push(qry);
     }
+    
   });
 
   // Process related points
-  Object.keys(levels.points).forEach(level => {
-    if (level !== level1 && filterCond(level)) {
-      const targetTable2 = getTableForLevel(level, "points");
-      const myMeta = getMetaForLevel(level, "points");
-      const nameColumn2 = myMeta.nameColumn || "name";
-      const gidColumn2 = myMeta.id || "id";
-      const qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level from ${targetTable1} s1,
-                ${targetTable2} s2
-                WHERE ${stMode}(s1.geom, ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), 4269))
-                AND s1.${targetId1} = $1`;
-      queries.push({qry, params: [geoId]});
-    }
-  });
-
+  if (levels.points) {
+    Object.keys(levels.points).forEach(level => {
+      if (level !== level1 && filterCond(level)) {
+        const targetTable2 = getTableForLevel(level, "points");
+        const myMeta = getMetaForLevel(level, "points");
+        const nameColumn2 = myMeta.nameColumn || "name";
+        const gidColumn2 = myMeta.id || "id";
+        const qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level from ${targetTable1} s1,
+                  ${targetTable2} s2
+                  WHERE ${stMode}(s1.geom, ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), 4269))
+                  AND s1.${targetId1} = $1`;
+        queries.push({qry, params: [geoId]});
+      }
+    });
+  }
+  console.log(queries);
   return queries;
 };
 
@@ -187,35 +206,47 @@ export default ({db}) => {
   api.get("/neighbors/:geoId", (req, httpResult) => {
     const geoId = req.params.geoId;
     const level = levelLookup(geoId);
+    const myMeta1 = getMetaForLevel(level);
+    console.log("MYLEVEL=", level);
+    const geoIdColumn1 = myMeta1.geoColumn || "geoid";
+    const geometryColumn1 = myMeta1.geometryColumn || "geometry";
 
     if (!(level in levels.shapes)) {
       httpResult.status(404).json({status: "No such level", level});
     }
 
     const targetTable = getTableForLevel(level);
-    const myMeta = getMetaForLevel(level);
-    const cols = myMeta.columns.map(x => `s2."${x}"`).join(",") || "*";
+    // const myMeta = getMetaForLevel(level);
 
-    const qry = `SELECT ${cols} from ${targetTable} s1,
+    const qry = `SELECT s2."${geoIdColumn1}" as geoid, '${level}' as level from ${targetTable} s1,
               ${targetTable} s2
-              WHERE ST_Touches(s1.geom, s2.geom)
-              AND s1.geoid = $1;`;
-
+              WHERE ST_Touches(s1."${geometryColumn1}", s2."${geometryColumn1}")
+              AND s1."${geoIdColumn1}" = $1;`;
+console.log("MYQRY", qry);
     db.query(qry, geoId).then((results, error) => {
       httpResult.json(!error ? results : error);
     });
   });
 
-  api.get("/relations/:mode(parents|children|intersects)/01000US", (req, httpResult) => {
-    const nationVal = {geoid: "01000US", level: "nation", name: "United States", overlap_size: 1};
-    httpResult.json([nationVal]);
-  });
+  // api.get("/relations/:mode(parents|children|intersects)/01000US", (req, httpResult) => {
+  //   const nationVal = {geoid: "01000US", level: "nation", name: "United States", overlap_size: 1};
+  //   httpResult.json([nationVal]);
+  // });
 
   api.get("/relations/:mode(parents|children|intersects)/:geoId", (req, httpResult) => {
     const geoId = req.params.geoId;
     const mode = req.params.mode;
-    let skipLevel = [...Object.keys(levels.shapes).filter(lvl => getMetaForLevel(lvl).ignoreByDefault),
-      ...Object.keys(levels.points).filter(lvl => getMetaForLevel(lvl, "points").ignoreByDefault)];
+    console.log("mode", mode);
+    console.log("geoId", geoId);
+    console.log("levels", levels);
+
+    let skipLevel = [
+      ...Object.keys(levels.shapes).filter(lvl => getMetaForLevel(lvl).ignoreByDefault),
+    ];
+  
+    if (levels.points) {
+      skipLevel = [...skipLevel, ...Object.keys(levels.points).filter(lvl => getMetaForLevel(lvl, "points").ignoreByDefault)];
+    }
 
     let targetLevels = req.query.targetLevels;
 
@@ -234,7 +265,7 @@ export default ({db}) => {
       .then(values => values.reduce((acc, x) => [...acc, ...x], []))
       .then(dataArr => {
         if (mode !== "children" && !targetLevels) {
-          const nationVal = {geoid: "01000US", level: "nation", name: "United States"};
+          const nationVal = {geoid: null, level: "nation", name: "Nation"};
           if (overlapSize) {
             nationVal.overlap_size = 1;
           }
