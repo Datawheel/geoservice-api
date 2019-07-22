@@ -258,16 +258,6 @@ console.log("MYQRY", qry);
       return db.query(qry, params);
     }))
       .then(values => values.reduce((acc, x) => [...acc, ...x], []))
-      .then(dataArr => {
-        if (mode !== "children" && !targetLevels) {
-          const nationVal = {geoid: null, level: "nation", name: "Nation"};
-          if (overlapSize) {
-            nationVal.overlap_size = 1;
-          }
-          dataArr.splice(0, 0, nationVal);
-        }
-        return dataArr;
-      })
       .then(results => httpResult.json(results))
       .catch(error => {
         console.error("An error occured", error);
