@@ -231,9 +231,6 @@ console.log("MYQRY", qry);
   api.get("/relations/:mode(parents|children|intersects)/:geoId", (req, httpResult) => {
     const geoId = req.params.geoId;
     const mode = req.params.mode;
-    console.log("mode", mode);
-    console.log("geoId", geoId);
-    console.log("levels", levels);
 
     let skipLevel = [
       ...Object.keys(levels.shapes).filter(lvl => getMetaForLevel(lvl).ignoreByDefault),
