@@ -228,11 +228,6 @@ console.log("MYQRY", qry);
     });
   });
 
-  // api.get("/relations/:mode(parents|children|intersects)/01000US", (req, httpResult) => {
-  //   const nationVal = {geoid: "01000US", level: "nation", name: "United States", overlap_size: 1};
-  //   httpResult.json([nationVal]);
-  // });
-
   api.get("/relations/:mode(parents|children|intersects)/:geoId", (req, httpResult) => {
     const geoId = req.params.geoId;
     const mode = req.params.mode;
