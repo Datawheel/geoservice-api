@@ -96,7 +96,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
       const geometryColumn2 = myMeta.geometryColumn || "geometry";
 
       let qry;
-      const specialCase = levels.simpleRelations[level1];
+      const specialCase = levels.simpleRelations && levels.simpleRelations[level1];
       if (specialCase && specialCase.levels.includes(level) && specialCase.mode === levelMode) {
         // const prefix = reverseLevelLookup(level);
         const testStr = `${geoId.slice(0, specialCase.lengthToRetain)}`;
