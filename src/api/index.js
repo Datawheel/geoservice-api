@@ -7,6 +7,7 @@ import acsConfig from "config/acs_levels";
 let userConfig = null;
 
 const USER_CONFIG = process.env.GSA_USER_CONFIG_FILE;
+const DEFAULT_SRID = process.env.GSA_DEFAULT_SRID || 4326;
 
 if (USER_CONFIG) {
   console.log("Trying user config file", USER_CONFIG);
@@ -60,6 +61,9 @@ function buildLevelLookup(myLevels) {
       throw new Error("Bad level!");
     };
   }
+  else {
+    console.warn("No ID mapping specified");
+  }
   return defaultLevelLookup;
 }
 
@@ -67,7 +71,6 @@ const levelLookup = buildLevelLookup(levels);
 
 const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
   const level1 = levelLookup(geoId);
-  console.log("MYLEVEL=", level1);
   const targetTable1 = getTableForLevel(level1, "shapes");
   const myMeta1 = getMetaForLevel(level1);
   const targetId1 = myMeta1.id || myMeta1.geoColumn;
@@ -106,12 +109,13 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
           params: [`${testStr}%`]};
       }
       else {
-        const overlapSizeQry = overlapSize ? ", ST_Area(ST_Intersection(s1.geom, s2.geom)) as overlap_size" : "";
-
+        const overlapSizeQry = overlapSize ? `, ST_Area(ST_Intersection(s1."${geometryColumn1}", s2."${geometryColumn2}")) as overlap_size` : "";
+        const overlapFilterQry = "";
         qry = {qry: `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${overlapSizeQry}
                FROM ${targetTable1} s1,
                ${targetTable2} s2
-               WHERE ${stMode}(s1."${geometryColumn1}", s2."${geometryColumn2}") AND NOT ST_Touches(s1."${geometryColumn1}", s2."${geometryColumn2}") AND s1.${targetId1} = $1`,
+               WHERE ${stMode}(s1."${geometryColumn1}", s2."${geometryColumn2}") AND s1.${targetId1} = $1
+                ${overlapFilterQry}`,
           params: [geoId]};
           
       }
@@ -129,9 +133,10 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
         const myMeta = getMetaForLevel(level, "points");
         const nameColumn2 = myMeta.nameColumn || "name";
         const gidColumn2 = myMeta.id || "id";
+        const srid = myMeta.srid || DEFAULT_SRID;
         const qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level from ${targetTable1} s1,
                   ${targetTable2} s2
-                  WHERE ${stMode}(s1.geom, ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), 4269))
+                  WHERE ${stMode}(s1.geom, ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), ${srid}))
                   AND s1.${targetId1} = $1`;
         queries.push({qry, params: [geoId]});
       }
@@ -149,7 +154,7 @@ const pointFinderHelper = (lng, lat, skipLevel) => {
   lvlsToProcess.forEach(level => {
     const targetTable2 = getTableForLevel(level, "shapes");
     const myMeta = getMetaForLevel(level);
-    const srid = myMeta.srid || 4269;
+    const srid = myMeta.srid || DEFAULT_SRID;
     const nameColumn2 = myMeta.nameColumn || "name";
     const gidColumn2 = myMeta.geoColumn || "geoid";
     const qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level
@@ -207,7 +212,6 @@ export default ({db}) => {
     const geoId = req.params.geoId;
     const level = levelLookup(geoId);
     const myMeta1 = getMetaForLevel(level);
-    console.log("MYLEVEL=", level);
     const geoIdColumn1 = myMeta1.geoColumn || "geoid";
     const geometryColumn1 = myMeta1.geometryColumn || "geometry";
 
