@@ -69,19 +69,32 @@ function buildLevelLookup(myLevels) {
 
 const levelLookup = buildLevelLookup(levels);
 
-const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
+const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false, rangeKm = null) => {
   const level1 = levelLookup(geoId);
   const targetTable1 = getTableForLevel(level1, "shapes");
   const myMeta1 = getMetaForLevel(level1);
   const targetId1 = myMeta1.id || myMeta1.geoColumn;
   const levelMode = stMode;
   const queries = [];
+  let distParam = "";
 
   if (stMode === "children") {
     stMode = "ST_Contains";
   }
   else if (stMode === "parents") {
     stMode = "ST_Within";
+  } else if (stMode === "distance") {
+    stMode = "ST_DWithin";
+    if (!rangeKm) {
+      throw new Error("Distance endpoint must have rangeKm value");
+    }
+    if (!isNaN(rangeKm)) {
+      rangeKm *= 1000;
+    }
+    else {
+      throw new Error("rangeKm is not a number!");
+    }
+    distParam = `, ${rangeKm}`;
   }
   else {
     stMode = "ST_Intersects";
@@ -89,9 +102,9 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
   const filterCond = lvl => !skipLevel.includes(lvl);
   // Process related shapes
   const lvlsToProcess = Object.keys(levels.shapes).filter(filterCond);
-  const geometryColumn1 = "geometry"; ////myMeta1.geometryColumn || "geometry";
+  const geometryColumn1 = myMeta1.geometryColumn || "geometry";
   lvlsToProcess.forEach(level => {
-    if (level !== level1) {
+    if (level !== level1 || stMode === "ST_DWithin") {
       const targetTable2 = getTableForLevel(level, "shapes");
       const myMeta = getMetaForLevel(level);
       const nameColumn2 = myMeta.nameColumn || "name";
@@ -114,7 +127,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
         qry = {qry: `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${overlapSizeQry}
                FROM ${targetTable1} s1,
                ${targetTable2} s2
-               WHERE ${stMode}(s1."${geometryColumn1}", s2."${geometryColumn2}") AND s1.${targetId1} = $1
+               WHERE ${stMode}(s1."${geometryColumn1}", s2."${geometryColumn2}" ${distParam}) AND s1.${targetId1} = $1
                 ${overlapFilterQry}`,
           params: [geoId]};
           
@@ -136,7 +149,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
         const srid = myMeta.srid || DEFAULT_SRID;
         const qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level from ${targetTable1} s1,
                   ${targetTable2} s2
-                  WHERE ${stMode}(s1.geom, ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), ${srid}))
+                  WHERE ${stMode}(s1.geom, ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), ${srid}) ${distParam})
                   AND s1.${targetId1} = $1`;
         queries.push({qry, params: [geoId]});
       }
@@ -231,7 +244,7 @@ export default ({db}) => {
     });
   });
 
-  api.get("/relations/:mode(parents|children|intersects)/:geoId", (req, httpResult) => {
+  api.get("/relations/:mode(parents|children|intersects|distance)/:geoId", (req, httpResult) => {
     const geoId = req.params.geoId;
     const mode = req.params.mode;
 
@@ -244,6 +257,7 @@ export default ({db}) => {
     }
 
     let targetLevels = req.query.targetLevels;
+    const rangeKm = req.query.rangeKm;
 
     if (targetLevels) {
       targetLevels = targetLevels.split(",");
@@ -252,7 +266,7 @@ export default ({db}) => {
     }
 
     const overlapSize = req.query.overlapSize === "true";
-    const queries = geoSpatialHelper(mode, geoId, skipLevel, overlapSize);
+    const queries = geoSpatialHelper(mode, geoId, skipLevel, overlapSize, rangeKm);
     Promise.all(queries.map(raw => {
       const {qry, params} = raw;
       return db.query(qry, params);
