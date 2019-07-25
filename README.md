@@ -13,7 +13,7 @@ Required Environment variables:
 |GSA_DB_HOST|Postgres Database Host|
 |GSA_DB_PORT|Postgres Database Port|
 |GSA_USER_CONFIG_FILE| Absolute path to levels JSON configuration file _(optional)_|
-
+|GSA_DEFAULT_SRID|Default SRID to use for point-based calculations. _(optional)_|
 # API Usage
 
 **Version:** 0.0.1
