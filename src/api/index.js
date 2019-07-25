@@ -261,7 +261,10 @@ export default ({db}) => {
 
     if (targetLevels) {
       targetLevels = targetLevels.split(",");
-      const levelNames = [...Object.keys(levels.shapes), ...Object.keys(levels.points)];
+      let levelNames = [...Object.keys(levels.shapes)];
+      if (levels.points) {
+        levelNames = [...levelNames, ...Object.keys(levels.points)];
+      }
       skipLevel = levelNames.filter(x => !targetLevels.includes(x));
     }
 
