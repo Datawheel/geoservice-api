@@ -226,7 +226,6 @@ export default ({db}) => {
               ${targetTable} s2
               WHERE ST_Touches(s1."${geometryColumn1}", s2."${geometryColumn1}")
               AND s1."${geoIdColumn1}" = $1;`;
-console.log("MYQRY", qry);
     db.query(qry, geoId).then((results, error) => {
       httpResult.json(!error ? results : error);
     });
