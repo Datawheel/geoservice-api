@@ -30,9 +30,10 @@ Required Environment variables:
 | Name | Located in | Description | Required | Schema |
 | ---- | ---------- | ----------- | -------- | ---- |
 | geoId | path | ID of geospatial entity of interest | Yes | string |
-| mode | path | The desired relationships to find for the specified geospatial entity. Can be one of children, parents or intersects. Children will find only entities contained within the boundaries. Parents will find entities that contain the target entity and intersects will find any entity that intersect the entity in any way. | Yes | string |
+| mode | path | One of `parents`, `children`, `intersects`, or `distance`. The desired relationships to find for the specified geospatial entity. Can be one of children, parents or intersects. Children will find only entities contained within the boundaries. Parents will find entities that contain the target entity and intersects will find any entity that intersect the entity in any way. | Yes | string |
 | targetLevels | query | Comma separated list of desired geographic levels | No | string |
 | overlapSize | query | Include a measure of the overlap size between geographic entities (should be used only as needed since it is slower to compute) | No | boolean (true/false) |
+| rangeKm | query | If mode is `distance` user must provide a value for range in kilometers for the distance search. | Only if `mode` is distance | integer |
 **Responses**
 
 | Code | Description |
