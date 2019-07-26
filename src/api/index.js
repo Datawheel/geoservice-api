@@ -69,7 +69,9 @@ function buildLevelLookup(myLevels) {
 
 const levelLookup = buildLevelLookup(levels);
 
-const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false, rangeKm = null) => {
+const geoSpatialHelper = (stMode, geoId, skipLevel,
+  overlapSize = false, rangeKm = null, displayName = false) => {
+
   const level1 = levelLookup(geoId);
   const targetTable1 = getTableForLevel(level1, "shapes");
   const myMeta1 = getMetaForLevel(level1);
@@ -111,13 +113,13 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false, rangeKm
       const nameColumn2 = myMeta.nameColumn || "name";
       const gidColumn2 = myMeta.geoColumn || "geoid";
       const geometryColumn2 = myMeta.geometryColumn || "geometry";
-
+      const nameStr2 = displayName ? ` s2."${nameColumn2}" as name, ` : "";
       let qry;
       const specialCase = levels.simpleRelations && levels.simpleRelations[level1];
       if (specialCase && specialCase.levels.includes(level) && specialCase.mode === levelMode) {
         // const prefix = reverseLevelLookup(level);
         const testStr = `${geoId.slice(0, specialCase.lengthToRetain)}`;
-        qry = {qry: `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level
+        qry = {qry: `SELECT s2."${gidColumn2}" as geoid, ${nameStr2} '${level}' as level
                FROM ${targetTable2} s2
                WHERE CAST(s2."${gidColumn2}" as TEXT) LIKE $1`,
           params: [`${testStr}%`]};
@@ -125,7 +127,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false, rangeKm
       else {
         const overlapSizeQry = overlapSize ? `, ST_Area(ST_Intersection(s1."${geometryColumn1}", s2."${geometryColumn2}")) as overlap_size` : "";
         const overlapFilterQry = "";
-        qry = {qry: `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${overlapSizeQry}
+        qry = {qry: `SELECT s2."${gidColumn2}" as geoid, ${nameStr2} '${level}' as level ${overlapSizeQry}
                FROM ${targetTable1} s1,
                ${targetTable2} s2
                WHERE ${stMode}(s1."${geometryColumn1}", s2."${geometryColumn2}" ${distParam}) AND s1.${targetId1} = $1
@@ -146,9 +148,10 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false, rangeKm
         const targetTable2 = getTableForLevel(level, "points");
         const myMeta = getMetaForLevel(level, "points");
         const nameColumn2 = myMeta.nameColumn || "name";
-        const gidColumn2 = myMeta.id || "id";
+        const gidColumn2 = `${myMeta.id} as "id"` || "id";
+        const nameStr2 = displayName ? ` s2."${nameColumn2}" as name, ` : "";
         const srid = myMeta.srid || DEFAULT_SRID;
-        const qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level from ${targetTable1} s1,
+        const qry = `SELECT s2."${gidColumn2}", ${nameStr2} '${level}' as level from ${targetTable1} s1,
                   ${targetTable2} s2
                   WHERE ${stMode}(s1.geom, ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), ${srid}) ${distParam})
                   AND s1.${targetId1} = $1`;
@@ -270,7 +273,8 @@ export default ({db}) => {
     }
 
     const overlapSize = req.query.overlapSize === "true";
-    const queries = geoSpatialHelper(mode, geoId, skipLevel, overlapSize, rangeKm);
+    const displayName = req.query.displayName === "true";
+    const queries = geoSpatialHelper(mode, geoId, skipLevel, overlapSize, rangeKm, displayName);
     Promise.all(queries.map(raw => {
       const {qry, params} = raw;
       return db.query(qry, params);
