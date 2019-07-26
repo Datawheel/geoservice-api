@@ -42,8 +42,8 @@ const defaultLevelLookup = geoId => {
 };
 
 /*
-Given an idMapping dictionary, this function will assemble another function
-which given an ID will determine what geospatial level the ID represents
+Given an idMapping dictionary, this function will return a function
+which takes an geo item ID (e.g. 12345) maps it to the geo level that it represents (e.g. "state")
 so that the appropriate SQL table can be queried.
 */
 function buildLevelLookup(myLevels) {
@@ -83,7 +83,8 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false, rangeKm
   }
   else if (stMode === "parents") {
     stMode = "ST_Within";
-  } else if (stMode === "distance") {
+  }
+  else if (stMode === "distance") {
     stMode = "ST_DWithin";
     if (!rangeKm) {
       throw new Error("Distance endpoint must have rangeKm value");
