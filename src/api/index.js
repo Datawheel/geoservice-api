@@ -7,7 +7,7 @@ import acsConfig from "config/acs_levels";
 let userConfig = null;
 
 const USER_CONFIG = process.env.GSA_USER_CONFIG_FILE;
-const DEFAULT_SRID = process.env.GSA_DEFAULT_SRID || 4326;
+const DEFAULT_SRID = (process.env.GSA_DEFAULT_SRID ? parseInt(process.env.GSA_DEFAULT_SRID, 10) : null) || 4326;
 
 if (USER_CONFIG) {
   console.log("Trying user config file", USER_CONFIG);
@@ -153,7 +153,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel,
         const srid = myMeta.srid || DEFAULT_SRID;
         const qry = `SELECT s2."${gidColumn2}", ${nameStr2} '${level}' as level from ${targetTable1} s1,
                   ${targetTable2} s2
-                  WHERE ${stMode}(s1.geom, ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), ${srid}) ${distParam})
+                  WHERE ${stMode}(s1."${geometryColumn1}", ST_SetSRID(ST_MakePoint(s2."lng", s2.lat), ${srid}) ${distParam})
                   AND s1.${targetId1} = $1`;
         queries.push({qry, params: [geoId]});
       }
@@ -163,7 +163,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel,
   return queries;
 };
 
-const pointFinderHelper = (lng, lat, skipLevel) => {
+const pointFinderHelper = (lng, lat, skipLevel, displayName) => {
   const filterCond = lvl => !skipLevel.includes(lvl);
   const queries = [];
   // Process related boundaries
@@ -174,9 +174,18 @@ const pointFinderHelper = (lng, lat, skipLevel) => {
     const srid = myMeta.srid || DEFAULT_SRID;
     const nameColumn2 = myMeta.nameColumn || "name";
     const gidColumn2 = myMeta.geoColumn || "geoid";
-    const qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level
+    const geometryColumn2 = myMeta.geometryColumn || "geometry";
+
+    const nameFinalStr2 = displayName ? `s2."${nameColumn2}" as name, ` : "";
+    // Logic to put geometries into Lat/Long coordinates
+    const pointXformLogic = `ST_Intersects(
+      ST_TRANSFORM(ST_SetSRID(s2."${geometryColumn2}", $1), 4326),
+      ST_SetSRID(ST_MakePoint($2,  $3), 4326)
+   )`;
+
+    const qry = `SELECT s2."${gidColumn2}" as geoid, ${nameFinalStr2} '${level}' as level
                  FROM ${targetTable2} s2
-                 WHERE ST_Intersects(s2.geom, ST_SetSRID(ST_MakePoint($2, $3), $1))`;
+                 WHERE ${pointXformLogic}`;
     queries.push({qry, params: [srid, parseFloat(lng), parseFloat(lat)]});
   });
 
@@ -184,8 +193,10 @@ const pointFinderHelper = (lng, lat, skipLevel) => {
 };
 
 const getSkipLevels = req => {
-  let skipLevel = [...Object.keys(levels.shapes).filter(lvl => getMetaForLevel(lvl).ignoreByDefault),
-    ...Object.keys(levels.points).filter(lvl => getMetaForLevel(lvl, "points").ignoreByDefault)];
+  let skipLevel = [...Object.keys(levels.shapes).filter(lvl => getMetaForLevel(lvl).ignoreByDefault)];
+  if (levels.points) {
+    skipLevel = [...skipLevel, ...Object.keys(levels.points).filter(lvl => getMetaForLevel(lvl, "points").ignoreByDefault)];
+  }
   let targetLevels = req.query.targetLevels;
   if (targetLevels) {
     targetLevels = targetLevels.split(",");
