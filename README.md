@@ -1,4 +1,4 @@
-Geospatial Service api
+Geospatial Service API
 ==================================
 
 API for querying geospatial data
@@ -59,3 +59,31 @@ Required Environment variables:
 | Code | Description |
 | ---- | ----------- |
 | 200 | successful operation |
+
+# Configuration File Format
+
+
+## Shape level configurations
+| Name | Description | Required | Type |
+| ---- | ---------- | ----------- | -------- | ---- |
+| schema | Name of schema that contains the table | No (defaults to "public") | String |
+| table | Name of table that the geospatial table. This table must at least contain an ID column and a geometry column. | Yes | String |
+| idColumn | Name of the identifier column for each row in the table. | Yes | String |
+| nameColumn | Name of the display name column for each row in the table. | No | String |
+| geometryColumn | Name of the geospatial geometry column for each row in the table. | No (defaults to "geometry") | String |
+| parent | Name(s) of other levels which are immediate parents of the current level. | No | String or String[]|
+
+
+Every entry in the `shapes` configuration object maps the name of a target shape level (e.g. "state", "county" etc.) to an object that contains the settings above. See the example below for usage reference.
+
+## Example
+At its most basic level, the configuration may consist of a list of `shapes` configuration items. For example:
+
+```json
+{
+    "shapes": {
+        "entity": {"schema": "public", "table": "inegi_geo_ent", "idColumn": "ent_id", "nameColumn": "ent_id"},
+        "municipality": {"schema": "public", "table": "inegi_geo_mun", "idColumn": "mun_id", "parent": ["entity"], "nameColumn": "mun_id"},
+        "locality": {"schema": "public", "table": "inegi_geo_loc", "idColumn": "loc_id", "parent": "municipality", "nameColumn": "loc_id"}
+    },
+```
