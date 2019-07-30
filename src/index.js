@@ -24,6 +24,12 @@ app.use(bodyParser.json({
   limit: config.bodyLimit
 }));
 
+// Check if critical variables are set
+if (!process.env.GSA_USER_CONFIG_FILE || process.env.GSA_USER_CONFIG_FILE.length < 1) {
+  console.error("GSA_USER_CONFIG_FILE environment variable is not set. Please set GSA_USER_CONFIG_FILE.");
+  process.exit(-1);
+}
+
 // connect to db
 initializeDb(db => {
 
