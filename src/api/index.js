@@ -75,7 +75,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel,
   const level1 = levelLookup(geoId);
   const targetTable1 = getTableForLevel(level1, "shapes");
   const myMeta1 = getMetaForLevel(level1);
-  const targetId1 = myMeta1.id || myMeta1.geoColumn;
+  const targetId1 = myMeta1.id || myMeta1.idColumn;
   const levelMode = stMode;
   const queries = [];
   let distParam = "";
@@ -111,7 +111,7 @@ const geoSpatialHelper = (stMode, geoId, skipLevel,
       const targetTable2 = getTableForLevel(level, "shapes");
       const myMeta = getMetaForLevel(level);
       const nameColumn2 = myMeta.nameColumn || "name";
-      const gidColumn2 = myMeta.geoColumn || "geoid";
+      const gidColumn2 = myMeta.idColumn || "geoid";
       const geometryColumn2 = myMeta.geometryColumn || "geometry";
       const nameStr2 = displayName ? ` s2."${nameColumn2}" as name, ` : "";
       let qry;
@@ -173,7 +173,7 @@ const pointFinderHelper = (lng, lat, skipLevel, displayName) => {
     const myMeta = getMetaForLevel(level);
     const srid = myMeta.srid || DEFAULT_SRID;
     const nameColumn2 = myMeta.nameColumn || "name";
-    const gidColumn2 = myMeta.geoColumn || "geoid";
+    const gidColumn2 = myMeta.idColumn || "geoid";
     const geometryColumn2 = myMeta.geometryColumn || "geometry";
 
     const nameFinalStr2 = displayName ? `s2."${nameColumn2}" as name, ` : "";
@@ -240,7 +240,7 @@ export default ({db}) => {
     const geoId = req.params.geoId;
     const level = levelLookup(geoId);
     const myMeta1 = getMetaForLevel(level);
-    const geoIdColumn1 = myMeta1.geoColumn || "geoid";
+    const geoIdColumn1 = myMeta1.idColumn || "geoid";
     const geometryColumn1 = myMeta1.geometryColumn || "geometry";
 
     if (!(level in levels.shapes)) {
