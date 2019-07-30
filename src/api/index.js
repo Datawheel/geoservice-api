@@ -69,6 +69,21 @@ function buildLevelLookup(myLevels) {
 
 const levelLookup = buildLevelLookup(levels);
 
+/**
+ *
+ * @param {string or string[]} myMetaNextLevel - A string or list of strings representing possible parent or child levels
+ * @param {Object} possibleLevelNames - A dictionary for storing the unique parents or children
+ */
+function addMeta(myMetaNextLevel, possibleLevelNames) {
+  if (Array.isArray(myMetaNextLevel)) {
+    myMetaNextLevel.forEach(pLvlName => possibleLevelNames[pLvlName] = true);
+  }
+  else if (myMetaNextLevel) {
+    possibleLevelNames[myMetaNextLevel] = true;
+  }
+  return possibleLevelNames;
+}
+
 const geoSpatialHelper = (stMode, geoId, skipLevel,
   overlapSize = false, rangeKm = null, displayName = false) => {
 
@@ -106,8 +121,21 @@ const geoSpatialHelper = (stMode, geoId, skipLevel,
   // Process related shapes
   const lvlsToProcess = Object.keys(levels.shapes).filter(filterCond);
   const geometryColumn1 = myMeta1.geometryColumn || "geometry";
+  let possibleParents = null;
+  if (levelMode === "parents" && myMeta1.parent) {
+    possibleParents = {};
+    addMeta(myMeta1.parent, possibleParents);
+    Object.keys(possibleParents).forEach(parent => {
+      const myMeta = getMetaForLevel(parent);
+      addMeta(myMeta.parent, possibleParents);
+    });
+    possibleParents = Object.keys(possibleParents);
+  }
+
   lvlsToProcess.forEach(level => {
-    if (level !== level1 || stMode === "ST_DWithin") {
+    const skipParentCond = levelMode === "parents" && possibleParents && !possibleParents.includes(level);
+
+    if (!skipParentCond && level !== level1 || stMode === "ST_DWithin") {
       const targetTable2 = getTableForLevel(level, "shapes");
       const myMeta = getMetaForLevel(level);
       const nameColumn2 = myMeta.nameColumn || "name";
@@ -135,7 +163,6 @@ const geoSpatialHelper = (stMode, geoId, skipLevel,
           params: [geoId]};
           
       }
-
       queries.push(qry);
     }
     
