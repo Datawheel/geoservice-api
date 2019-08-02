@@ -1,5 +1,5 @@
 {
-  "name": "geospatial-api",
+  "name": "geoservice-api",
   "version": "0.0.1",
   "description": "Geospatial Service API",
   "main": "dist",
@@ -9,6 +9,13 @@
     "start": "node dist",
     "prestart": "npm run -s build",
     "test": "eslint src"
+  },
+  "node_deb": {
+    "init": "systemd",
+    "version": "0.0.1",
+    "entrypoints": {
+      "daemon": "dist/index.js"
+    }
   },
   "eslintConfig": {
     "extends": "eslint:recommended",
@@ -38,6 +45,7 @@
     "resource-router-middleware": "^0.6.0"
   },
   "devDependencies": {
+    "node-deb": "^0.10.7",
     "@babel/cli": "^7.0.0",
     "@babel/core": "^7.0.0",
     "@babel/node": "^7.0.0",
