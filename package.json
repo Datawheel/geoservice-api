@@ -1,6 +1,6 @@
 {
   "name": "geoservice-api",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Geospatial Service API",
   "main": "dist",
   "scripts": {
@@ -12,7 +12,6 @@
   },
   "node_deb": {
     "init": "systemd",
-    "version": "0.0.1",
     "entrypoints": {
       "daemon": "dist/index.js"
     }
