@@ -65,7 +65,7 @@ Required Environment variables:
 
 ## Shape level configurations
 | Name | Description | Required | Type |
-| ---- | ---------- | ----------- | -------- | ---- |
+| ---- | ---------- | ----------- | -------- |
 | schema | Name of schema that contains the table | No (defaults to "public") | String |
 | table | Name of table that the geospatial table. This table must at least contain an ID column and a geometry column. | Yes | String |
 | idColumn | Name of the identifier column for each row in the table. | Yes | String |
