@@ -85,9 +85,9 @@ function addMeta(myMetaNextLevel, possibleLevelNames) {
 }
 
 const geoSpatialHelper = (stMode, geoId, skipLevel,
-  overlapSize = false, rangeKm = null, displayName = false) => {
+  overlapSize = false, rangeKm = null, displayName = false, explicitLevel = null) => {
 
-  const level1 = levelLookup(geoId);
+  const level1 = explicitLevel || levelLookup(geoId);
   const targetTable1 = getTableForLevel(level1, "shapes");
   const myMeta1 = getMetaForLevel(level1);
   const targetId1 = myMeta1.id || myMeta1.idColumn;
@@ -286,9 +286,10 @@ export default ({db}) => {
     });
   });
 
-  api.get("/relations/:mode(parents|children|intersects|distance)/:geoId", (req, httpResult) => {
+  api.get("/relations/:mode(parents|children|intersects|distance)/:explicitLevel?/:geoId", (req, httpResult) => {
     const geoId = req.params.geoId;
     const mode = req.params.mode;
+    const explicitLevel = req.params.explicitLevel;
 
     let skipLevel = [
       ...Object.keys(levels.shapes).filter(lvl => getMetaForLevel(lvl).ignoreByDefault),
@@ -312,7 +313,7 @@ export default ({db}) => {
 
     const overlapSize = req.query.overlapSize === "true";
     const displayName = req.query.displayName === "true";
-    const queries = geoSpatialHelper(mode, geoId, skipLevel, overlapSize, rangeKm, displayName);
+    const queries = geoSpatialHelper(mode, geoId, skipLevel, overlapSize, rangeKm, displayName, explicitLevel);
     Promise.all(queries.map(raw => {
       const {qry, params} = raw;
       return db.query(qry, params);
