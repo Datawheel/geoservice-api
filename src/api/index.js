@@ -62,7 +62,7 @@ function buildLevelLookup(myLevels) {
     };
   }
   else {
-    console.warn("No ID mapping specified");
+    console.warn("No ID mapping specified. Users will be required to explicitly reference the geographic level of the desired ID for all relations.");
   }
   return defaultLevelLookup;
 }
