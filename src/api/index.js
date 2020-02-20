@@ -17,6 +17,7 @@ const reverseLevelLookup = lvl => {
     "state": "040",
     "msa": "310",
     "place": "160",
+    "congressionaldistrict": "500",
     "zip": "860",
     "puma": "795",
     "school-district": "970"
@@ -33,6 +34,7 @@ const levelLookup = geoId => {
     "040": "state",
     "310": "msa",
     "160": "place",
+    "500": "congressionaldistrict",
     "860": "zip",
     "795": "puma",
     "970": "school-district"
