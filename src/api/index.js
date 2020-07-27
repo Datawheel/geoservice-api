@@ -43,7 +43,7 @@ const levelLookup = geoId => {
 };
 
 
-const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
+const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false, minFilter = true) => {
   const level1 = levelLookup(geoId);
   const targetTable1 = getTableForLevel(level1, "shapes");
   const targetId1 = getMetaForLevel(level1).id;
@@ -80,11 +80,12 @@ const geoSpatialHelper = (stMode, geoId, skipLevel, overlapSize = false) => {
       }
       else {
         const overlapSizeQry = overlapSize ? ", ST_Area(ST_Intersection(s1.geom, s2.geom)) as overlap_size" : "";
+        const minOverlapQry = minFilter ? " AND ST_Area(ST_Intersection(s1.geom, s2.geom)) > 0.0000001" : " ";
 
         qry = `SELECT s2."${gidColumn2}", s2."${nameColumn2}" as name, '${level}' as level ${overlapSizeQry}
                FROM ${targetTable1} s1,
                ${targetTable2} s2
-               WHERE ${stMode}(s1.geom, s2.geom) AND NOT ST_Touches(s1.geom, s2.geom) AND s1.${targetId1} = $1`;
+               WHERE ${stMode}(s1.geom, s2.geom) AND NOT ST_Touches(s1.geom, s2.geom) AND s1.${targetId1} = $1 ${minOverlapQry}`;
       }
 
       queries.push(qry);
@@ -159,7 +160,9 @@ export default ({db}) => {
     }
 
     const overlapSize = req.query.overlapSize === "true";
-    const queries = geoSpatialHelper(mode, geoId, skipLevel, overlapSize);
+    const minFilter = req.query.minOverlap === "true";
+
+    const queries = geoSpatialHelper(mode, geoId, skipLevel, overlapSize, minFilter);
     Promise.all(queries.map(q => db.query(q, geoId)))
       .then(values => values.reduce((acc, x) => [...acc, ...x], []))
       .then(dataArr => {
