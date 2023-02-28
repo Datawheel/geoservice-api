@@ -48,9 +48,7 @@ so that the appropriate SQL table can be queried.
 */
 function buildLevelLookup(myLevels) {
   if (myLevels.idMapping !== undefined) {
-    const myLenConditions = Object.keys(myLevels.idMapping).map(key => {
-      return [key, myLevels.idMapping[key].maxLength];
-    });
+    const myLenConditions = Object.keys(myLevels.idMapping).map(key => [key, myLevels.idMapping[key].maxLength]);
     return lvl => {
       for (let i = 0; i < myLenConditions.length; i++) {
         const item = myLenConditions[i];
@@ -283,6 +281,9 @@ export default ({db}) => {
               AND s1."${geoIdColumn1}" = $1;`;
     db.query(qry, geoId).then((results, error) => {
       httpResult.json(!error ? results : error);
+    }).catch(error => {
+      console.error(error);
+      httpResult.json([]);
     });
   });
 
@@ -291,7 +292,7 @@ export default ({db}) => {
     const mode = req.params.mode;
 
     let skipLevel = [
-      ...Object.keys(levels.shapes).filter(lvl => getMetaForLevel(lvl).ignoreByDefault),
+      ...Object.keys(levels.shapes).filter(lvl => getMetaForLevel(lvl).ignoreByDefault)
     ];
   
     if (levels.points) {
