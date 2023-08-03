@@ -1,0 +1,11 @@
+*.md
+*.env
+*.gcp.json
+*.gcp.encoded
+.git
+.github
+.gitignore
+node_modules
+Dockerfile
+index.js
+npm-debug.log
