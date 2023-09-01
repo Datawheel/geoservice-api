@@ -7,5 +7,4 @@
 .gitignore
 node_modules
 Dockerfile
-index.js
 npm-debug.log
