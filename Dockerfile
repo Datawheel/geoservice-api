@@ -1,5 +1,5 @@
 # starting point: an image of node-10
-FROM node:14-alpine
+FROM node:12-alpine
 
 # create the app directory inside the image and use it as root from now on
 WORKDIR /usr/src/app
